@@ -1,14 +1,14 @@
 <?php
 
 /*
-Plugin Name: Root Relative URLs
+Plugin Name: MU Root Relative URLs
 Plugin URI: http://www.marcuspope.com/wordpress/
 Description: A Wordpress Plugin that converts all URL formats to root relative URL's to enable seamless transitioning
 between staging and production host environments without requiring hackish content find-replace or host/NAT
-spoofing strategies.
-Author: Marcus E. Pope, marcuspope
-Author URI: http://www.marcuspope.com
-Version: 1.7
+spoofing strategies. Extended by Mia Sophie Moeller for MU support
+Author: Mia Sophie Moeller, Marcus E. Pope, marcuspope
+Autor URI: http://www.marcuspope.com
+Version: 1.7.1
 
 Copyright 2011 Marcus E. Pope (email : me@marcuspope.com)
 
@@ -28,9 +28,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 //Ideally this function runs before any other plugin
-add_action('plugins_loaded', array('MP_WP_Root_Relative_URLS', 'init'), 1);
+add_action('plugins_loaded', array('MP_WP_MU_Root_Relative_URLS', 'init'), 1);
 
-class MP_WP_Root_Relative_URLS {
+class MP_WP_MU_Root_Relative_URLS {
     //Wordpress Root Relative URL Hack - this allows for accessing a Wordpress site from multiple domain names and
     //munges absolute urls provided to the wysiwyg editor to be root relative instead of absolute
     //generally displays urls throughout the admin area as root relative instead of absolute
@@ -64,8 +64,23 @@ class MP_WP_Root_Relative_URLS {
         //in the database - a needless process for any website.
         $url = @parse_url($url);
         $relative = ltrim(@$url['path'], '/') . (isset($url['query']) ? "?" . $url['query'] : '');
-        return MP_WP_Root_Relative_URLS::scheme(
-            'http://' . @$_SERVER['HTTP_HOST'] .
+
+	$useDomain = @$_SERVER['HTTP_HOST'];
+	if($url['host'] && $_SERVER['HTTP_HOST'] && $url['host'] != $_SERVER['HTTP_HOST'])
+	{
+		// check if mu domain
+		$blogId = get_blog_id_from_url($url['host']);
+		$currentSite = get_current_site();
+		if($blogId!==0 && $currentSite && $currentSite->id)
+		{
+			if($currentSite->id!==$blogId)
+			{
+				$useDomain = $url['host'];
+			} 
+		} 
+	}
+        return MP_WP_MU_Root_Relative_URLS::scheme(
+            'http://' . $useDomain .
             (!empty($relative) ? '/' . $relative : '') .
             (isset($url['fragment']) ? '#' . $url['fragment'] : '')
         );
@@ -76,7 +91,7 @@ class MP_WP_Root_Relative_URLS {
         //get_bloginfo_rss returns multiple types of info, the_permalink_rss only returns a url.
         //so when type is not passed in, consider it a url, otherwise only parse when type == url
         if ($type == 'url') {
-            return MP_WP_Root_Relative_URLS::dynamic_absolute_url($info);
+            return MP_WP_MU_Root_Relative_URLS::dynamic_absolute_url($info);
         }
         return $info;
     }
@@ -97,7 +112,7 @@ class MP_WP_Root_Relative_URLS {
         //Here is where we fix the root relative content urls into absolute urls using the current host name
         //this shouldn't be required but companies like feedburner and feedblitz don't understand the web :(
         if (self::$massage == true) {
-            $a = preg_replace_callback('#(<[^>]+(?:href|src)\s*?=\s*?[\'"])(\/)#i', array("MP_WP_Root_Relative_URLS", "do_absolute_massage_cb"), $a);
+            $a = preg_replace_callback('#(<[^>]+(?:href|src)\s*?=\s*?[\'"])(\/)#i', array("MP_WP_MU_Root_Relative_URLS", "do_absolute_massage_cb"), $a);
         }
         return $a;
     }
@@ -114,7 +129,7 @@ class MP_WP_Root_Relative_URLS {
         if (self::$massage) {
             //massage back to absolute because we're rendering a feed and the platform mixes url procurment methods between the delivery methods
             //despite offering _rss specific filters
-            return MP_WP_Root_Relative_URLS::dynamic_absolute_url($url);
+            return MP_WP_MU_Root_Relative_URLS::dynamic_absolute_url($url);
         } else {
             $url = @parse_url($url);
             return '/' . ltrim(@$url['path'], '/') .
@@ -154,23 +169,23 @@ class MP_WP_Root_Relative_URLS {
 
     static function fix_canonical_redirect($redirect, $requested) {
         //Fixes infinite redirect loop caused by WP Core bug: http://core.trac.wordpress.org/ticket/21824
-        if (MP_WP_Root_Relative_URLS::proper_root_relative_url($redirect) ==
-            MP_WP_Root_Relative_URLS::proper_root_relative_url($requested)) {
+        if (MP_WP_MU_Root_Relative_URLS::proper_root_relative_url($redirect) ==
+            MP_WP_MU_Root_Relative_URLS::proper_root_relative_url($requested)) {
             return false;
         }
     }
    
     static function fix_upload_paths($o) {
         //Fixes attachment urls when user has customized the base url and/or upload folder in Admin > Settings > Media : Uploading Files
-        $o['url'] = MP_WP_Root_Relative_URLS::proper_root_relative_url($o['url']);
-        $o['baseurl'] = MP_WP_Root_Relative_URLS::proper_root_relative_url($o['baseurl']);
+        $o['url'] = MP_WP_MU_Root_Relative_URLS::proper_root_relative_url($o['url']);
+        $o['baseurl'] = MP_WP_MU_Root_Relative_URLS::proper_root_relative_url($o['baseurl']);
         return $o;
     }
    
     static function init() {
         //Setup all hooks / filters for either dynamically replacing the host part of a URL with the current host
         //or for stripping the scheme + host + port altogether
-        MP_WP_Root_Relative_URLS::add_actions(
+        MP_WP_MU_Root_Relative_URLS::add_actions(
             array(
                 'option_siteurl',
                 'blog_option_siteurl',
@@ -184,13 +199,13 @@ class MP_WP_Root_Relative_URLS {
                 'network_site_url'
             ),
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'dynamic_absolute_url'
             ),
             1
         );
 
-        MP_WP_Root_Relative_URLS::add_actions(
+        MP_WP_MU_Root_Relative_URLS::add_actions(
             array(
                 'post_link',
                 'page_link',
@@ -199,13 +214,13 @@ class MP_WP_Root_Relative_URLS {
                 'wp_get_attachment_url'
             ),
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'proper_root_relative_url'
             ),
             1
         );
 
-        MP_WP_Root_Relative_URLS::add_actions(
+        MP_WP_MU_Root_Relative_URLS::add_actions(
             array(
                 'get_bloginfo_rss',
                 'the_permalink_rss',
@@ -214,7 +229,7 @@ class MP_WP_Root_Relative_URLS {
                 'get_comment_link'
             ),
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'dynamic_rss_absolute_url'
             ),
             1, //high priority
@@ -222,7 +237,7 @@ class MP_WP_Root_Relative_URLS {
         );
         
         //Used to indicate that an atom feed is being generated so it's ok to massage the content urls for absolute format
-        MP_WP_Root_Relative_URLS::add_actions(
+        MP_WP_MU_Root_Relative_URLS::add_actions(
             array(
                 'atom_ns',
                 'attom_comments_ns',
@@ -231,18 +246,18 @@ class MP_WP_Root_Relative_URLS {
                 'rdf_ns'
             ),
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'enable_content_massage'
             )
         );
         
-        MP_WP_Root_Relative_URLS::add_actions(
+        MP_WP_MU_Root_Relative_URLS::add_actions(
             array(
                 'the_excerpt_rss',
                 'the_content_feed',
             ),
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'massage_external_content'
             )
         );
@@ -254,7 +269,7 @@ class MP_WP_Root_Relative_URLS {
         add_filter(
             'redirect_network_admin_request',
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'proper_multisite_path_comparison'
             )
         );
@@ -262,7 +277,7 @@ class MP_WP_Root_Relative_URLS {
         add_filter(
             'image_send_to_editor',
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'root_relative_image_urls'
             ),
             1, //high priority
@@ -272,7 +287,7 @@ class MP_WP_Root_Relative_URLS {
         add_filter(
             'media_send_to_editor',
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'root_relative_media_urls'
             ),
             1,
@@ -282,7 +297,7 @@ class MP_WP_Root_Relative_URLS {
         add_filter(
             'redirect_canonical',
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'fix_canonical_redirect'
             ),
             10,
@@ -292,7 +307,7 @@ class MP_WP_Root_Relative_URLS {
         add_filter(
             'upload_dir',
             array(
-                'MP_WP_Root_Relative_URLS',
+                'MP_WP_MU_Root_Relative_URLS',
                 'fix_upload_paths'
             ),
             1,

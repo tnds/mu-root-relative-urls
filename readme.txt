@@ -1,5 +1,5 @@
 === Root Relative URLs ===
-Contributors: marcuspope
+Contributors:Mia Sophie Moeller,  marcuspope
 Donate link: http://www.marcuspope.com/
 Tags: url, links, admin, multisite, content, permalinks, migration, absolute urls
 Requires at least: 3.2.1
